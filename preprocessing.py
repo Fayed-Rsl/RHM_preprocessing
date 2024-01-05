@@ -5,15 +5,12 @@
 
 # %%
 # import the main libraries required for the preprocessing
-import os
 from mne_bids import BIDSPath, read_raw_bids, print_dir_tree
 import mne 
-import matplotlib.pyplot as plt
 import pandas as pd 
-import numpy as np 
 from pathlib import Path
 from scipy.io import loadmat
-
+import numpy as np
 
 # %%
 bids_root = '/data/raw/hirsch/RestHoldMove_anon2/'
