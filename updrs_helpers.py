@@ -14,8 +14,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind
 from statannotations.Annotator import Annotator 
+%matplotlib qt 
+
 # %%
-bids_root = '/data/raw/hirsch/RestHoldMove_anon2/'
+bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
 
 # load UPDRS dataset 
 updrs_on = Path(bids_root) / 'participants_updrs_on.tsv'
@@ -46,7 +48,7 @@ sns.swarmplot(data=data, x='status', y='SUM', palette=['cornflowerblue', 'red'],
 sns.violinplot(x='status', y='SUM', data=data, inner=None, palette=['cornflowerblue', 'red'], saturation=0.4, ax=ax)
 
 annot = Annotator(ax, pairs=[('ON', 'OFF')], data=data, x='status', y='SUM')
-annot.configure(test='t-test_ind', text_format='star', loc='outside')
+annot.configure(test='t-test_ind', text_format='star', loc='inside')
 annot.apply_and_annotate()
 
 # plt.title('UPDRS scores and medication status')
@@ -58,5 +60,4 @@ plt.tight_layout()
 plt.yticks(np.arange(0, max(data['SUM']) + 10, 10))
 
 
-# %%
-fig.savefig('figures/updrs_scores.jpg', dpi=300)
+# fig.savefig('figures/updrs_scores.jpg', dpi=300)

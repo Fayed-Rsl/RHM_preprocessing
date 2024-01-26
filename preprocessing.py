@@ -11,16 +11,20 @@ import pandas as pd
 from pathlib import Path
 from scipy.io import loadmat
 import numpy as np
+import neurokit2 as nk
 
+import matplotlib.pyplot as plt
+
+%matplotlib qt 
 # %%
-bids_root = '/data/raw/hirsch/RestHoldMove_anon2/'
+bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
 print_dir_tree(bids_root)
 # %% 
 # setting of a specific file
 session = 'PeriOp'
-subject = 'hnetKS'
+subject = 'QZTsn6'
 datatype = 'meg'
-task = 'MoveL'
+task = 'HoldL'
 acq = 'MedOff'
 run = '1'
 
@@ -114,13 +118,6 @@ power = mne.time_frequency.tfr_morlet(
     epochs, n_cycles=2, return_itc=False, freqs=frequencies, decim=3, n_jobs=-1)
 power.plot(['LFP-right-0'])
 
-# %% UPDRS EXAMPLE
-# load UPDRS dataset 
-updrs_off = Path(bids_root) / 'participants_updrs_off.tsv'
-updrs_on = Path(bids_root) / 'participants_updrs_on.tsv'
-
-off = pd.read_csv(updrs_on, sep='\t')
-on = pd.read_csv(updrs_off, sep='\t')
 # %% HEADMODEL EXAMPLE 
 # create a bids path for the headmodel, check=False because this is not a standard bids file
 headmodel_path = BIDSPath(root=bids_root, session=session, subject=subject,
@@ -132,4 +129,4 @@ headmodel_file = headmodel_path.match()[0]
 headmodel = loadmat(headmodel_file)
 
 
-
+        
