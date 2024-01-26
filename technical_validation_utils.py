@@ -7,104 +7,25 @@ import pandas as pd
 import mne_connectivity
 from matplotlib.backends.backend_pdf import PdfPages
 
-
-# create a main class that is shared across scripts
-def emg_event(raw, time_for_burst=12, end_rest=300, factor=3, emg_ch=['EMG063', 'EMG064'], split_file=False):
-    raw = raw.copy().pick_types(emg=True).pick_channels(emg_ch)  # default EMG 63-64
-    raw.load_data()
     
-    # get the time and sampling freq
-    fs = raw.info['sfreq']
-    t = raw.times
-    
-    if split_file == False: 
-        # get the period when the rest is over
-        no_rest = np.where(t >= end_rest)[0]
-        timestamps = t[no_rest]
-        emg = np.mean(raw._data[:, no_rest], axis=0) # average emg channel
-    else:
-        timestamps = t[:]
-        emg = np.mean(raw._data[:, :], axis=0) 
-
-    
-        
-    # compute tkeo
-    tkeo = emg[1:-1] ** 2 - (emg[:-2] * emg[2:])
-    tkeo = np.append(0, tkeo)
-    
-    # apply a threshold
-    threshold = np.mean(tkeo) + factor * np.std(tkeo)
-    above_threshold = tkeo > threshold
-    # everything that is under the threshold will be 0 
-    bursting = tkeo * (above_threshold)
-    
-    # get the indx and the timestamp when there is bursting
-    burst_idx = np.where(bursting != 0)[0]
-    burst_time = np.array([(idx / fs) + timestamps[0]  for idx in burst_idx])
-    
-    # get the onset and offsets of bursts
-    onsets_idx = []
-    offsets_idx = []
-    onsets = []
-    offsets = []
-    for i, burst in enumerate(burst_time[:-1]):
-        time_diff = burst_time[i + 1] - burst
-        
-        if time_diff >= time_for_burst:
-            
-            onsets_idx.append(burst_idx[i])
-            offsets_idx.append(burst_idx[i+1])
-    
-            onsets.append(burst_time[i + 1])
-            offsets.append(burst)
-    
-    # do not bother finding the last onset and offset, can visually see it. 
-    # add onset at the beginning and remove last elem 
-    onsets.insert(0, burst_time[0])
-    onsets = onsets[:-1]
-    
-
-    # make sure they have the same size
-    assert len(onsets) == len(offsets)
-    
-    # get the burst length
-    burst_duration = [off - on for on, off in zip(onsets, offsets)]
-    
-    emg_info = {
-        'emg':emg,
-        'onsets':onsets,
-        'offsets':offsets,
-        'onsets_idx':onsets_idx,
-        'offsets_idx':offsets_idx,
-        
-        'burst_duration':burst_duration,
-        'timestamps':timestamps,
-        'tkeo':tkeo,
-        'threshold':threshold,
-        'bursting':bursting}
-    
-    return emg_info
-
-def plot_emg_burst(timestamps, tkeo, bursting, onsets, offsets, threshold):
-    plt.plot(timestamps[1:], tkeo, alpha=0.5, label='TKEO')
-    plt.plot(timestamps[1:], bursting, alpha=0.5, label='Detected Burst')
-    # for i, line in enumerate(burst_periods[:-1]):
-    for i, (on, off) in enumerate(zip(onsets, offsets)):
-        # only write the label once
-        plt.axvline(on, color='green', linestyle='--', linewidth=2, label='Onset' if i == 0 else None)
-        plt.axvline(off, color='red', linestyle='--', linewidth=2, label='Offset' if i == 0 else None)
-        plt.fill_betweenx([0, max(tkeo)], on, off, color='purple', alpha=0.2, label='Burst Period' if i == 0 else None)
-        
-    plt.axhline(y=threshold, color='black', linestyle='--', label='threshold')
-    plt.legend()
-    plt.show()
-
-
-# get the onset and the duration for task ('MoveL') event
+# get the onset and the duration for task (e.g., 'MoveL') event
 # resting state period marked and the selected task.
-# Note that it is also possible to extend the rest period to everything that it is not marked as the task.
-# But here we only include the start rest period not the rest period between the task aswell.
+# note that it is also possible to adapt the script to extend the rest period to everything that it is not marked as the task.
+# but here we only include the period that were marked as rest, but not the rest period between the task aswell.
 def get_raw_condition(raw, conds):
+    '''    
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        raw object
+    conds : list
+        list of conditions
+    Returns
+    -------
+    tuple of rest and task segments
+    if no event found in the raw.annotations --> the value will be None.
+    '''    
+    
     conditions = conds.copy() # create a copy of the list so we can modify it without changing the original list 
     allowed_conditions = [['rest', 'HoldL'], ['rest', 'MoveL'], ['rest', 'HoldR'], ['rest', 'MoveR'], ['rest']]
     assert conditions in allowed_conditions, f'Conditions should be in {allowed_conditions}'
@@ -113,15 +34,16 @@ def get_raw_condition(raw, conds):
     task_segments = None 
     rest_segments = None
     
-    # check that the raw actually have resting state not only task 
+    # check that the raw actually have resting state not only task
     if 'rest' not in raw.annotations.description:
         conditions.remove('rest')
 
     for task in conditions:
+        # get the onset and the duration of the event 
         segments_onset = raw.annotations.onset[raw.annotations.description == task]
         segments_duration = raw.annotations.duration[raw.annotations.description == task]
         
-        # substract the first_samp delay in the task onset
+        # substract the first_sample delay in the onset
         segments_onset = segments_onset - (raw.first_samp / raw.info['sfreq'])
         
         # loop trough the onset and duration to get only part of the raw that are in the task
@@ -133,29 +55,49 @@ def get_raw_condition(raw, conds):
                 # otherwise, append the segments to the existing raw object
                 else:
                     task_segments.append([raw.copy().crop(tmin=onset, tmax=onset+duration)])
+            # do the same for rest
             else:
                 if i == 0:
                     rest_segments = raw.copy().crop(tmin=onset, tmax=onset+duration)
-                # otherwise, append the segments to the existing raw object
                 else:
                     rest_segments.append([raw.copy().crop(tmin=onset, tmax=onset+duration)])
-
     return rest_segments, task_segments
 
 
-
+# function to find the selected_emg during the task 
 def get_selected_emg(emgs, ch_names, side):
+    '''
+    Parameters
+    ----------
+    emgs : np.array
+        (4, n_times). #4 channels, 2 left - 2 right
+    ch_names : list
+        name of the EMG channels
+    side : str
+        left, right or find. to find the side of the task
+
+    Returns
+    -------
+    selected_emg_mean : np.array
+        the mean of the emgs that were used during the task
+    selected_emg_label : str
+        the side of the emgs
+    ch_names : list
+        the names of the emgs
+    '''
     
-    # find the side automatically using RMS 
+    # slice the emgs with the sides.
     emg_left = emgs[2:]
     emg_right = emgs[:2]
     
+    # find the side automatically using RMS     
     if side == 'find':
         rms_right = np.sqrt(np.mean(emg_right**2))
         rms_left = np.sqrt(np.mean(emg_left**2))
-        
         selected_emg =  emg_left if rms_left > rms_right else  emg_right
-        selected_emg_mean = np.mean(selected_emg, axis=0) # average of the 2 EMG channels
+        selected_emg_mean = np.mean(selected_emg, axis=0) # average of the 2 emgs channels
+    
+    # force the side of the emgs
     elif side == 'left':
         selected_emg_mean =  np.mean(emg_left, axis=0)
     elif side == 'right':
@@ -163,11 +105,11 @@ def get_selected_emg(emgs, ch_names, side):
     elif side == 'all':
         selected_emg_mean =  np.mean(emgs, axis=0)
     
+    # make the correct label and channel names
     if side == 'find':
         selected_emg_label = 'left' if rms_left > rms_right else 'right' 
     else:
         selected_emg_label = side 
-
     if selected_emg_label == 'right':
         ch_names = ch_names[:2]
     elif selected_emg_label == 'left':
@@ -176,21 +118,61 @@ def get_selected_emg(emgs, ch_names, side):
     print(selected_emg_label, ch_names)
     return selected_emg_mean, selected_emg_label, ch_names
 
-    
+# function to get the emg power 
 def get_emg_power(raw, ch_names, side='find', fmin=2, fmax=45):
+    '''
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        raw object
+    ch_names : list
+        list of emg channels
+    side : str, optional
+        find emg side. The default is 'find'.
+    fmin : int, optional
+        min freq. The default is 2.
+    fmax : int, optional
+        max freq. The default is 45.
+
+    Returns
+    -------
+    psd : np.array
+        psd power of the EMG in specific side.
+    freqs : np.array
+        frequency
+    selected_emg_label : str
+        side
+    ch_names : list
+        list of emg channels.
+    '''
+    
     emgs = raw.get_data()
     sfreq = raw.info['sfreq'] 
     selected_emg, selected_emg_label, ch_names = get_selected_emg(emgs, ch_names, side)
     psd, freqs = mne.time_frequency.psd_array_welch(selected_emg, sfreq=sfreq, fmin=fmin, fmax=fmax, n_fft=2048)
     return psd, freqs, selected_emg_label, ch_names
 
+# function to plot the power of emgs
 def plot_power(psd, freqs, side, condition, color, ax):
     ax.plot(freqs, psd, label=f'{condition}', alpha=0.5, color=color)
     ax.legend()
 
-
-
+# function for coherence, in order to preprocess the raw resting state and transform it to an epochs. 
 def preprocess_raw_to_epochs(bids, downsample=200):
+    '''
+    Parameters
+    ----------
+    bids : mne_bids.BIDSPath
+        BIDSPath object.
+    downsample : int, optional
+        resample the sampling frequency from 2000 to 200. The default is 200.
+    Returns
+    -------
+    epochs : mne.io.Epochs
+        epochs object
+    '''
+    
+    # read the raw bids
     raw = read_raw_bids(bids)
     
     # we are only preprocessing resting state here, so if there is no rest in the annotations, just stop the task ...
@@ -198,11 +180,11 @@ def preprocess_raw_to_epochs(bids, downsample=200):
         print('No rest for', bids)
         return 
 
-    # create a dict of all wanted channel types
+    # create a dict of all wanted channel types --> meg gradiometers and eeg
     channel_to_pick = {'meg':'grad', 'eeg': True} 
     
     # pick all channels types and exclude the bads one
-    raw.pick_types(**channel_to_pick, exclude='bads') # if there is any bad channel remove them
+    raw.pick_types(**channel_to_pick, exclude='bads')
     
     # create a bids path for the montage, check=False because this is not a standard bids file
     montage_path = BIDSPath(root=bids.root, session=bids.session, subject=bids.subject,
@@ -211,26 +193,26 @@ def preprocess_raw_to_epochs(bids, downsample=200):
     # get the montage tsv bids file (first item on the list match)
     montage = montage_path.match()[0]
     
-    # read the file using pandas
+    # read the tsv file using pandas
     df = pd.read_csv(montage, sep='\t')
     
     # create a dictionary mapping old names to new names for right and left channels
     montage_mapping = {row['right_contacts_old']: row['right_contacts_new'] for idx, row in df.iterrows()} # right
     montage_mapping.update({row['left_contacts_old']: row['left_contacts_new'] for idx, row in df.iterrows()}) # left
     
-    # remove in the montage mapping, the channels that are not in the raw --> because bads get excluded
+    # remove in the montage mapping the channels that are not in the raw anymore (because they were bads)
     montage_mapping  = {key: value for key, value in montage_mapping.items() if key in raw.ch_names }
     
-    # rename the channels using the mapping
+    # rename the channels using the montage mapping scheme EEG001 --> LFP-<side>-0
     raw.rename_channels(montage_mapping)
-    
 
-    # get list of lfp's and their side 
+    # get list of lfp names and their side 
     lfp_name = [name for name in raw.ch_names if 'LFP' in name]
     lfp_right = [name for name in lfp_name if 'right' in name]
     lfp_left = [name for name in lfp_name if 'left' in name]
     
     # get LFP-side-contact then add the next contact number to the name to create the new bipolar name
+    # e.g. LFP-right-0 and LFP-right-1 will become LFP-right-01
     if len(lfp_right) > 1: # we need at least 2 contact to create a bipolar scheme
         bipolar_right = [f'{lfp_right[i]}{lfp_right[i+1][-1]}' for i in range(len(lfp_right)-1)]
         ref_left = True
@@ -249,40 +231,38 @@ def preprocess_raw_to_epochs(bids, downsample=200):
     # set bipolar reference scheme for each respective side 
     if ref_right:
         raw = mne.set_bipolar_reference(raw, anode=lfp_right[:-1], cathode=lfp_right[1:], ch_name=bipolar_right)
-    
+        
     if ref_left:
         raw = mne.set_bipolar_reference(raw, anode=lfp_left[:-1], cathode=lfp_left[1:], ch_name=bipolar_left)
 
     # apply a 1Hz high pass firwin filter to remove slow drifts
     raw.filter(l_freq=1, h_freq=None, method='fir', n_jobs=-1)
     
-    # downsample to 200 from 2000 
+    # after filtering, now do downsample to 200 from 2000. NB: downsample after filter so no aliasing introduced
     raw.resample(downsample)
     
-    # crop the data and get the rest_segments only
-    raw, _ = get_raw_condition(raw, ['rest'])
-    
+    # crop the data and get the rest_segments only if the task is not already Rest otherwise, keep the raw data as it is
+    if bids.task != 'Rest':
+        raw, _ = get_raw_condition(raw, ['rest'])
+
     # create epochs of fixed length 2 seconds and 50% overlap.
     epochs = mne.make_fixed_length_epochs(raw, duration=2, overlap=1, preload=True)
-    
     return epochs 
 
 
+# make individual topomap 1_lfp*megs
 def individual_lfpmeg_coh(seeds, targets, data, sfreq, fmin, fmax):
-    individual_coh_list = []
-    # check for single topo plot
+    individual_coh_list = [] # store the individual coherence in a list
+    # loop over the seeds i.e., list of LFP sensors and do connectivity for one (seed) LFP against all targets (MEG)
     for seed in seeds:
-        # only do one 
         indices = mne_connectivity.seed_target_indices(seed, targets) 
-        # compute spectral connectivity coherence with multitaper 
-        coh_lfpmeg = mne_connectivity.spectral_connectivity_epochs(data, fmin=fmin, fmax=fmax, method='coh',
-                    mode='multitaper', sfreq=sfreq, indices=indices, n_jobs=-1)
-        
+        # compute spectral connectivity coherence with multitaper and append it to a list 
+        coh_lfpmeg = mne_connectivity.spectral_connectivity_epochs(data, fmin=fmin, fmax=fmax,
+                   method='coh', mode='multitaper', sfreq=sfreq, indices=indices, n_jobs=-1)
         individual_coh_list.append(coh_lfpmeg)
-    
+
     return individual_coh_list
     
-
 def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],average_type='all', dB=False):
     # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
     coh_data = coh.get_data() 
@@ -291,8 +271,8 @@ def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],averag
     # reshape the data according to (N_lfp * N_meg * N_freqs)
     coh_data = coh_data.reshape(n_lfp, n_meg, len(coh_freqs))    
 
+    # average the connectivity on LFP axis channel, average type: either all LFP, only left or right side
     if average_type == 'all':        
-        # average the connectivity on LFP axis channel, average type: either all LFP, only left or right side
         coh_average = np.mean(coh_data, axis=0)
     elif average_type == 'side':
         # assert that the lfp_ind is not empty
@@ -302,31 +282,32 @@ def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],averag
     # create a mne Spectrum array using MEG sensors information
     coh_spec = mne.time_frequency.SpectrumArray(coh_average, meg_info, freqs=coh_freqs)
     
-    # fieldtrip colors
+    # fieldtrip colors <3, better than mne default colors! 
     coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax)
-    
     return ax
 
-def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=False, show=True):
-    # meg info for sensors
-    
+def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=False, show=True): 
     # calculate the number of LFP channels on the left and right
     left_channels = sum('left' in name for name in lfp_ch_names)
     right_channels = sum('right' in name for name in lfp_ch_names)
     
-    # Determine the number of columns dynamically
+    # determine the number of columns dynamically
     num_columns = max(left_channels, right_channels)
-
+    
+    # create a figure of 2 rows: row1=LEFT, row2=RIGHTH and n_columns depending on how much LFP in that side
     fig, ax = plt.subplots(2, num_columns, figsize=(8, 6))
-    row1, row2 = 0, 0 
+    row1, row2 = 0, 0 # initialise both rows to 0
     for idx, (coh, name) in enumerate(zip (coh_list, lfp_ch_names)):
         # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
         coh_data = coh.get_data()
         
+        # get the frequency
         coh_freqs = np.array(coh.freqs)
+        
+        # create a mne Spectrum array using MEG sensors information
         coh_spec = mne.time_frequency.SpectrumArray(coh_data, meg_info, freqs=coh_freqs)
     
-        # fieldtrip colors
+        # plot for specific sides with fieldtriep color map <3 
         if 'left' in name:
             coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[0][row1])
             ax[0][row1].set_title(name)
@@ -337,16 +318,17 @@ def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=Fa
             ax[1][row2].set_title(name)
             row2 += 1
         
-    # remove extra empty axes
+    # remove extra empty axes for each side
     for i in range(left_channels, num_columns):
         fig.delaxes(ax[0][i])
         
     for i in range(right_channels, num_columns):
         fig.delaxes(ax[1][i])
-      
+    
     if show:
         plt.show()
-      
+
+# function to save multiple figures into a PDF. basically to save the topos.
 def save_multipage(filename, figs=None, dpi=300):
     '''saving multiple figure in one pdf'''
     pp = PdfPages(filename)
@@ -356,10 +338,8 @@ def save_multipage(filename, figs=None, dpi=300):
         fig.savefig(pp, format='pdf', dpi=dpi)
     pp.close()
     
-
-
-
-# Matlab default color map            
+    
+# Matlab default color map          
 cm_data = [[0.2422, 0.1504, 0.6603],
 [0.2444, 0.1534, 0.6728],
 [0.2464, 0.1569, 0.6847],
