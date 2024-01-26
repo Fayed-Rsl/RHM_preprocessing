@@ -71,7 +71,7 @@ for n_file, bids in enumerate(subject_files):
     lfp_right_ind = [lfp.ch_names.index(name) for name in ch_lfp_right]
     lfp_left_ind = [lfp.ch_names.index(name) for name in ch_lfp_left]
     same_size = len(lfp_right_ind) == len(lfp_left_ind)
-    print(f'LFP right and left are equal: {same_size}')
+    # print(f'LFP right and left are equal: {same_size}')
     
     # get the epochs data to compute connectivity
     data = epochs.get_data(copy=True)
@@ -126,7 +126,7 @@ for n_file, bids in enumerate(subject_files):
     plt.show() 
     plt.close('all')
     
-    print(f'File n°{n_file} finished | {bids.basename}')
+    print(f'Done with file n°{n_file} | {bids.basename}')
 
 print('Coherence MEG-STN LFP Done.')
 # %%
