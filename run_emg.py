@@ -1,16 +1,13 @@
-# %%
 # import the main libraries required for the preprocessing
 from mne_bids import BIDSPath, read_raw_bids
 import mne 
-import pandas as pd 
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
-from technical_validation_utils import get_raw_condition, get_emg_power, get_selected_emg, plot_power
 from scipy.stats import zscore
-
+from technical_validation_utils import get_raw_condition, get_emg_power, plot_power
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
-# %matplotlib qt # interactive plot
+# %matplotlib qt 
 
 # %%
 bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
