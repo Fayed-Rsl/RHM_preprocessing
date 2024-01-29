@@ -6,7 +6,7 @@ from mne_bids import BIDSPath, read_raw_bids
 import pandas as pd
 import mne_connectivity
 from matplotlib.backends.backend_pdf import PdfPages
-
+from scipy import interpolate
     
 # get the onset and the duration for task (e.g., 'MoveL') event
 # resting state period marked and the selected task.
@@ -118,34 +118,8 @@ def get_selected_emg(emgs, ch_names, side):
     print(selected_emg_label, ch_names)
     return selected_emg_mean, selected_emg_label, ch_names
 
-# function to get the emg power 
+# function to get the emg power in the selected EMG side
 def get_emg_power(raw, ch_names, side='find', fmin=2, fmax=45):
-    '''
-    Parameters
-    ----------
-    raw : mne.io.Raw
-        raw object
-    ch_names : list
-        list of emg channels
-    side : str, optional
-        find emg side. The default is 'find'.
-    fmin : int, optional
-        min freq. The default is 2.
-    fmax : int, optional
-        max freq. The default is 45.
-
-    Returns
-    -------
-    psd : np.array
-        psd power of the EMG in specific side.
-    freqs : np.array
-        frequency
-    selected_emg_label : str
-        side
-    ch_names : list
-        list of emg channels.
-    '''
-    
     emgs = raw.get_data()
     sfreq = raw.info['sfreq'] 
     selected_emg, selected_emg_label, ch_names = get_selected_emg(emgs, ch_names, side)
@@ -215,15 +189,15 @@ def preprocess_raw_to_epochs(bids, downsample=200):
     # e.g. LFP-right-0 and LFP-right-1 will become LFP-right-01
     if len(lfp_right) > 1: # we need at least 2 contact to create a bipolar scheme
         bipolar_right = [f'{lfp_right[i]}{lfp_right[i+1][-1]}' for i in range(len(lfp_right)-1)]
-        ref_left = True
+        ref_right = True
     else:
-        ref_left = False # else do no re-reference this side
+        ref_right = False # else do no re-reference this side
     
     if len(lfp_left) > 1:
         bipolar_left = [f'{lfp_left[i]}{lfp_left[i+1][-1]}' for i in range(len(lfp_left)-1)]
-        ref_right = True
+        ref_left = True
     else: 
-        ref_right = False
+        ref_left = False
         
     # from now on we need to load the data to apply filter and re-referencing
     raw.load_data()
@@ -327,6 +301,49 @@ def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=Fa
     
     if show:
         plt.show()
+
+
+# create a function to pad the grand average.sometime the shape of MEG sensors is 204 or 202.
+# here we reshape the sensors column to the maximum size of the array so that every coherence have 204 sensors.
+# we fill the extra array with nan when it does not already exist. (i.e. if 202 it will be 204 and fill the extra with nan)
+def pad(grand_ave):
+    array = np.array(grand_ave, dtype=object)
+    max_sensors = max(matrix.shape[0] for matrix in array)
+    padded = [np.pad(matrix, ((0, max_sensors - matrix.shape[0]), (0, 0)), mode='constant', constant_values=np.nan)
+              for matrix in grand_ave]
+    
+    # average on subject axis and average while ignoring the nan we just created to have equal shape for al
+    padded =  np.nanmean(padded, axis=0)
+    return padded
+
+# instead of padding, do interpolate. it is indeed better 
+def interp(grand_ave):
+    # interpolate function to have a list of interpolated coherence matrices with the same size
+    array = np.array(grand_ave, dtype=object)
+    # find the maximum number of sensors across all subjects
+    max_sensors = max(matrix.shape[0] for matrix in array)
+    
+    # initialize a list to store interpolated coherence matrices
+    interpolated_coherence = []
+    
+    # interpolate coherence matrices to have the same number of sensors
+    for c in array:
+        n_sensors = c.shape[0]
+        
+        # interpolate along the sensor axis
+        x = np.arange(n_sensors)
+        f = interpolate.interp1d(x, c, axis=0, kind='linear', fill_value='extrapolate')
+        
+        # create new axis for interpolated sensors
+        new_x = np.linspace(0, n_sensors - 1, max_sensors)
+        
+        # interpolate coherence matrix
+        interpolated = f(new_x)
+        interpolated_coherence.append(interpolated)
+        
+    # average over all subjects axis
+    inter_grand_ave = np.mean(interpolated_coherence, axis=0) 
+    return inter_grand_ave
 
 # function to save multiple figures into a PDF. basically to save the topos.
 def save_multipage(filename, figs=None, dpi=300):
