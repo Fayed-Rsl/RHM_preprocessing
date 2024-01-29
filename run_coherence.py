@@ -6,12 +6,13 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import mne_connectivity
+import pickle
 
 # import homemade function 
 from technical_validation_utils import (preprocess_raw_to_epochs, individual_lfpmeg_coh,
                                         plot_individual_coh_topo, plot_coh_topo, save_multipage)
-# reduce verbose output
-mne.set_log_level(verbose='CRITICAL')
+
+mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # %matplotlib qt # interactive plot
     
 # %%
@@ -32,16 +33,18 @@ dB = True # log values for the plot
 
 # loop trough all the subject_files
 for n_file, bids in enumerate(subject_files):
-    # create filename to save the power for further group analysis and image for visual check
+    # create filename to save the power and indices for further group analysis and image for visual check
     coh_basename = bids.copy().update(suffix='coh', extension='.', split=None, check=False).basename.replace('.', '') # remove extension
+    ind_basename = bids.copy().update(suffix='ind', extension='.pkl', split=None, check=False).basename
     img_basename = bids.copy().update(suffix='img', extension='.pdf', split=None, check=False).basename
     
     # subject path, if the directory does not already exist make one
-    sub_path = Path(f'./coherence/{bids.subject}/')
+    sub_path = Path(f'./coherence/sub-{bids.subject}/')
     sub_path.mkdir(parents=True, exist_ok=True)     
     
     # combine full fname for saving 
     coh_path = Path(f'{sub_path}/{coh_basename}')
+    ind_path = Path(f'{sub_path}/{ind_basename}')
     img_path = Path(f'{sub_path}/{img_basename}')
     
     # check if the files already exist, then the analyse has already been made then skip to the next file
@@ -104,13 +107,19 @@ for n_file, bids in enumerate(subject_files):
                   average_type='all', ax=ax[0], dB=dB)
     
     # average for left side
-    plot_coh_topo(coh=coh_lfpmeg, n_lfp=n_lfp_sensors, n_meg=n_meg_sensors, meg_info=meg.info, freqs_beta=freqs_beta,
-                  average_type='side', lfp_ind=lfp_left_ind, ax=ax[1], dB=dB)
-    
+    if len(lfp_left_ind) > 1:
+        plot_coh_topo(coh=coh_lfpmeg, n_lfp=n_lfp_sensors, n_meg=n_meg_sensors, meg_info=meg.info, freqs_beta=freqs_beta,
+                      average_type='side', lfp_ind=lfp_left_ind, ax=ax[1], dB=dB)
+    else:
+        fig.delaxes(ax[1]) # remove the ax from the plot
+
     # average for right side 
-    plot_coh_topo(coh=coh_lfpmeg, n_lfp=n_lfp_sensors, n_meg=n_meg_sensors, meg_info=meg.info, freqs_beta=freqs_beta,
-                  average_type='side', lfp_ind=lfp_right_ind, ax=ax[2], dB=dB)
-    
+    if len(lfp_right_ind) > 1:
+        plot_coh_topo(coh=coh_lfpmeg, n_lfp=n_lfp_sensors, n_meg=n_meg_sensors, meg_info=meg.info, freqs_beta=freqs_beta,
+                      average_type='side', lfp_ind=lfp_right_ind, ax=ax[2], dB=dB)
+    else:
+        fig.delaxes(ax[2]) # remove the ax from the plot
+            
     # set title for each axes
     ax[0].set_title('Average ALL')
     ax[1].set_title('Average left')
@@ -119,6 +128,20 @@ for n_file, bids in enumerate(subject_files):
     # save the coherence between lfp and meg for grand average group
     coh_lfpmeg.save(coh_path)
     
+    # save the seeds, targets, left, right, n_meg, n_lfp
+    save_coh_info = {'n_lfp_sensors':n_lfp_sensors,
+                    'n_meg_sensors':n_meg_sensors,
+                    'meg_info':meg.info,
+                    'seeds':seeds,
+                    'targets':targets,
+                    'lfp_names':lfp.ch_names,
+                    'lfp_left_ind':lfp_left_ind,
+                    'lfp_right_ind':lfp_right_ind}
+      
+    
+    with open(ind_path, 'wb') as f: 
+        pickle.dump(save_coh_info, f)
+
     # save all the plots produce for this bids file inside a PDF for further check.
     save_multipage(img_path)
     
