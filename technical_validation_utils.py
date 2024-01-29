@@ -236,7 +236,7 @@ def individual_lfpmeg_coh(seeds, targets, data, sfreq, fmin, fmax):
         individual_coh_list.append(coh_lfpmeg)
 
     return individual_coh_list
-    
+
 def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],average_type='all', dB=False):
     # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
     coh_data = coh.get_data() 
@@ -260,6 +260,7 @@ def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],averag
     coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax)
     return ax
 
+# plot indviidual topomap
 def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=False, show=True): 
     # calculate the number of LFP channels on the left and right
     left_channels = sum('left' in name for name in lfp_ch_names)
@@ -303,22 +304,9 @@ def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=Fa
         plt.show()
 
 
-# create a function to pad the grand average.sometime the shape of MEG sensors is 204 or 202.
-# here we reshape the sensors column to the maximum size of the array so that every coherence have 204 sensors.
-# we fill the extra array with nan when it does not already exist. (i.e. if 202 it will be 204 and fill the extra with nan)
-def pad(grand_ave):
-    array = np.array(grand_ave, dtype=object)
-    max_sensors = max(matrix.shape[0] for matrix in array)
-    padded = [np.pad(matrix, ((0, max_sensors - matrix.shape[0]), (0, 0)), mode='constant', constant_values=np.nan)
-              for matrix in grand_ave]
-    
-    # average on subject axis and average while ignoring the nan we just created to have equal shape for al
-    padded =  np.nanmean(padded, axis=0)
-    return padded
-
-# instead of padding, do interpolate. it is indeed better 
+# interpolate function to have a list of interpolated coherence matrices with the same size
 def interp(grand_ave):
-    # interpolate function to have a list of interpolated coherence matrices with the same size
+    # make the grand ave list into an array
     array = np.array(grand_ave, dtype=object)
     # find the maximum number of sensors across all subjects
     max_sensors = max(matrix.shape[0] for matrix in array)
@@ -344,6 +332,7 @@ def interp(grand_ave):
     # average over all subjects axis
     inter_grand_ave = np.mean(interpolated_coherence, axis=0) 
     return inter_grand_ave
+
 
 # function to save multiple figures into a PDF. basically to save the topos.
 def save_multipage(filename, figs=None, dpi=300):
