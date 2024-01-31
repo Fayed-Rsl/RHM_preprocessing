@@ -3,30 +3,21 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import os 
-from scipy.stats import zscore
+
 # import homemade function 
-from technical_validation_utils import save_multipage
-# %matplotlib qt
+from technical_validation_utils import save_multipage, subjects
     
 # %%
-# create a list of subjects to loop over all the fif file in session PeriOp
-# remove empty room and split 02 as it is read when we read split 01
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
-subjects = [sub for sub in os.listdir(bids_root) if os.path.isdir(bids_root + sub)]
-subjects.sort() # get all subjects
+# NB: run_emg.py must has been runned before running the average
 emg_dir = [Path('./emgs/') / sub for sub in subjects]
-
-# %%
+assert all(file.exists() for file in emg_dir), 'Please run_emg.py. Path has not been created yet.'
 
 # store variable for coherences 
 all_ave_psds_rest = []
 all_ave_psds_hold = []
 all_ave_psds_move = []
 
-norm = False # for zscore on time series
-norm_psd = False
-
-# norm_psd = True if not norm else False  # zscore the psd, only when we do not load zscore time series psd
+norm = False # for load zscore on time series
 
 for n_sub, subject_dir in enumerate(emg_dir):
     emg_files = [subject_dir / file for file in os.listdir(subject_dir) if 'emgdata' in file]
@@ -58,14 +49,10 @@ for n_sub, subject_dir in enumerate(emg_dir):
         if 'psd_rest' in keys:
             psd_rest = data['psd_rest']
             rest_time = data['rest_time']
-            if norm_psd:
-                psd_rest = zscore(psd_rest, axis=0)
             
         if 'psd_task' in keys:
             psd_task = data['psd_task']
             task_time = data['task_time']
-            if norm_psd:
-                psd_task = zscore(psd_task, axis=0)            
         
         # add each psds for this subject in a list that we will average afterwards
         # add the len of the task for this file so we can create weight for averaging
@@ -124,9 +111,9 @@ std_hold = np.std(np.vstack(all_ave_psds_hold), axis=0)
 std_move = np.std(np.vstack(all_ave_psds_move), axis=0)
 
 # std factor for each conditon (for plotting purposes fill between) very high variation in HOLD
-std_factor_rest = 0.1
-std_factor_hold = 0.1
-std_factor_move = 0.1
+std_factor_rest = 1 / total_rest
+std_factor_hold = 1 / total_hold
+std_factor_move = 1 / total_move 
 
 # plot arguments 
 plot_line = False # plot all lines for one condition
@@ -152,7 +139,6 @@ if plot_line:
     plt.plot(all_freqs_move.T, np.array(all_ave_psds_move).T, color=move_color, alpha=0.2)    
 plt.fill_between(freqs, mean_move - std_factor_move * std_move, mean_move + std_factor_move * std_move, color=move_color,alpha=0.2)
 
-
 plt.legend()
-save_multipage('./emgs/sub-GrandAverage.pdf')
+save_multipage('./figures/sub-GrandAverageEMG.pdf')
 plt.show()
