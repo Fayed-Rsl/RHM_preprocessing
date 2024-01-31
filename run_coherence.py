@@ -1,6 +1,4 @@
-# %%
 # import the main libraries required for the preprocessing
-from mne_bids import BIDSPath
 import mne 
 from pathlib import Path
 import numpy as np
@@ -9,30 +7,21 @@ import mne_connectivity
 import pickle
 
 # import homemade function 
-from technical_validation_utils import (preprocess_raw_to_epochs, individual_lfpmeg_coh,
+from technical_validation_utils import (subject_files, preprocess_raw_to_epochs,
                                         plot_individual_coh_topo, plot_coh_topo, save_multipage)
 
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
-# %matplotlib qt # interactive plot
-    
-# %%
-# create a list of subjects to loop over all the fif file in session PeriOp
-# remove empty room and split 02 as it is read when we read split 01
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
-subject_files = BIDSPath(root=bids_root, session='PeriOp', extension='.fif').match()
-subject_files = [file for file in subject_files if 'noise' not in file.basename]
-subject_files = [file for file in subject_files if 'split-02' not in file.basename]
-
 # %%
 # set the frequency for the coherence to compute 
 fmin = 13
 fmax = 30
 freqs = np.arange(fmin, fmax+1, 1) # [13, ..., 30]
 freqs_beta = {'beta': (fmin, fmax)} # freq up to beta (13, 30) 
-dB = True # log values for the plot
+dB = False # log values for the plot
 
 # loop trough all the subject_files
 for n_file, bids in enumerate(subject_files):
+    
     # create filename to save the power and indices for further group analysis and image for visual check
     coh_basename = bids.copy().update(suffix='coh', extension='.', split=None, check=False).basename.replace('.', '') # remove extension
     ind_basename = bids.copy().update(suffix='ind', extension='.pkl', split=None, check=False).basename
@@ -81,23 +70,20 @@ for n_file, bids in enumerate(subject_files):
     
     # get the channel length for meg and lfp 
     n_meg_sensors =  len(meg.ch_names)
-    n_lfp_sensors = len(lfp.ch_names) 
+    n_lfp_sensors = len(lfp.ch_names)
     
     # create indices: seeds and targets for connectivity measure so : get the index where it is LFP and MEG
     seeds  = mne.pick_types(epochs.info, eeg=True)# going from 0 to 202 MEG sensors as it in the epochs._data 
     targets = mne.pick_types(epochs.info, meg=True) # we want the connectivity between all sensors
     # n_connection indices[0] should be equal to n_lfp_sensors * n_meg_sensors
     indices = mne_connectivity.seed_target_indices(seeds, targets) 
-
-    # compute connectivity between individual contact and all MEG sensors. (1*202)
-    individual_coh_list = individual_lfpmeg_coh(seeds, targets, data, sfreq, fmin, fmax)
     
     # compute connectivity between ALL contacts and all MEG sensors (8*202)
     coh_lfpmeg = mne_connectivity.spectral_connectivity_epochs(data, fmin=fmin, fmax=fmax, method='coh',
                 mode='multitaper', sfreq=sfreq, indices=indices, n_jobs=-1)
     
     # plot individual topomap of all individual lfp contact
-    plot_individual_coh_topo(individual_coh_list, lfp.ch_names, meg.info, freqs_beta, dB=dB, show=False)
+    plot_individual_coh_topo(coh=coh_lfpmeg, lfp_ch_names=lfp.ch_names, n_lfp=n_lfp_sensors, n_meg=n_meg_sensors, meg_info=meg.info, freqs_beta=freqs_beta, dB=dB, show=False)
     
     # make a fig that will have --> the average for: all (1), left (2), right (3)
     fig, ax = plt.subplots(1, 3, figsize=(8, 6))
@@ -124,11 +110,16 @@ for n_file, bids in enumerate(subject_files):
     ax[0].set_title('Average ALL')
     ax[1].set_title('Average left')
     ax[2].set_title('Average right')
+        
+    # remove colorbar defaut label created for grad (ft/cm² ...)
+    for cbar in fig.axes:
+        if isinstance(cbar, plt.Axes):
+            cbar.set_ylabel('') 
     
     # save the coherence between lfp and meg for grand average group
     coh_lfpmeg.save(coh_path)
     
-    # save the seeds, targets, left, right, n_meg, n_lfp
+    # save the coherence information seeds, targets, left, right, n_meg, n_lfp ... for the grand average
     save_coh_info = {'n_lfp_sensors':n_lfp_sensors,
                     'n_meg_sensors':n_meg_sensors,
                     'meg_info':meg.info,
@@ -137,7 +128,6 @@ for n_file, bids in enumerate(subject_files):
                     'lfp_names':lfp.ch_names,
                     'lfp_left_ind':lfp_left_ind,
                     'lfp_right_ind':lfp_right_ind}
-      
     
     with open(ind_path, 'wb') as f: 
         pickle.dump(save_coh_info, f)
