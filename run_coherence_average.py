@@ -1,6 +1,4 @@
-# %%
 # import the main libraries required for the preprocessing
-from mne_bids import BIDSPath
 import mne 
 from pathlib import Path
 import numpy as np
@@ -8,22 +6,19 @@ import matplotlib.pyplot as plt
 import mne_connectivity
 import os 
 import pickle
-import pandas as pd 
+
 # import homemade function 
-from technical_validation_utils import (parula_map, interp, save_multipage)
+from technical_validation_utils import (parula_map, scaling, interp, save_multipage, subjects)
 
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # %matplotlib qt
-    
-# %%
-# create a list of subjects to loop over all the fif file in session PeriOp
-# remove empty room and split 02 as it is read when we read split 01
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
-subjects = [sub for sub in os.listdir(bids_root) if os.path.isdir(bids_root + sub)]
-subjects.sort() # get all subjects
-coherence_dir = [Path('./coherence/') / sub for sub in subjects]
 
 # %%
+# NB: run_coherence.py must has been runned before running the average
+coherence_dir = [Path('./coherence/') / sub for sub in subjects]
+assert all(file.exists() for file in coherence_dir), 'Please run_coherence.py. Path has not been created yet.'
+freqs_beta = {'beta': (13, 30)} 
+dB = False
 
 # store variable for coherences 
 all_coherences = []
@@ -58,7 +53,7 @@ for n_sub, subject_dir in enumerate(coherence_dir):
         meg_info = coh_info['meg_info']
         
         # sometime 2 bad MEG channels were removed, so we get the sensors position for this 2 missing sensors
-        if len(meg_info.ch_names) == 204 and got_info != True:
+        if len(meg_info.ch_names) == 204 and got_info != True: # hardcoded 204 sensors as we know it is the max
             meg_info_max = meg_info
             got_info = False
     
@@ -88,7 +83,6 @@ for n_sub, subject_dir in enumerate(coherence_dir):
 # %%
 # internally topomap function uses ascale of 1e13**2 in the data because units is grad
 # cancel out this scaling to keep our actual coherence values 
-scaling = 1e13 ** 2
 
 # interpolate missing sensors and rescale it for the coherences list 
 grand_ave_coh = (interp(all_coherences) / scaling)
@@ -101,9 +95,7 @@ grand_ave_coh_left = mne.time_frequency.SpectrumArray(grand_ave_coh_left, meg_in
 grand_ave_coh_right = mne.time_frequency.SpectrumArray(grand_ave_coh_right, meg_info_max, freqs=coh_freqs)
 
 # %%
-freqs_beta = {'beta': (13, 30)} 
-dB = False
-
+# plot grand average for each sides 
 fig, ax = plt.subplots(1, 3, figsize=(8, 6))
 grand_ave_coh.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[0])
 grand_ave_coh_left.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[1])
@@ -120,7 +112,7 @@ ax[1].set_title('Average left')
 ax[2].set_title('Average right')
 
 # save the grand average inside the coherence folder.
-save_multipage('./coherence/sub-GrandAverage.pdf')
+save_multipage('./figures/sub-GrandAverageCOH.pdf')
 plt.show()
 
 # %%
