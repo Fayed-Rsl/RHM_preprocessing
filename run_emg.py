@@ -1,24 +1,18 @@
 # import the main libraries required for the preprocessing
-from mne_bids import BIDSPath, read_raw_bids
+from mne_bids import read_raw_bids
 import mne 
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import zscore
-from technical_validation_utils import get_raw_condition, get_emg_power, plot_power
+from technical_validation_utils import get_raw_condition, get_emg_power, plot_power, subject_files
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
-# %matplotlib qt 
-
 # %%
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
-# remove empty room and split 02 as it is read when we read split 01
-subject_files = BIDSPath(root=bids_root, session='PeriOp', extension='.fif').match()
-subject_files = [file for file in subject_files if 'noise' not in file.basename]
-subject_files = [file for file in subject_files if 'split-02' not in file.basename]
+# apply psd welch between 2, 45 Hz
+fmin = 2
+fmax = 45 
+norm = '' # '' or zscore (''= to keep the EMG data as it is, zscore= to zscore the raw time series before psd)
 
-fmin, fmax = 2, 45 # apply psd welch between 2, 45
-norm = '' # '' or zscore
-# %%
 # loop over all subject files
 for n_file, bids in enumerate(subject_files):
 
@@ -92,6 +86,7 @@ for n_file, bids in enumerate(subject_files):
     sub_path.mkdir(parents=True, exist_ok=True)        
     emg_path = Path(f'{sub_path}/{basename}')
     
+
     if psd_rest is not None and psd_task is not None :
         np.savez(emg_path, freqs=freqs, psd_ground=psd_ground, psd_rest=psd_rest, psd_task=psd_task, task_time=task_segments.times, rest_time=rest_segments.times)
 
@@ -104,4 +99,3 @@ for n_file, bids in enumerate(subject_files):
     # clear every variable that are saved
     del psd_rest, psd_task, psd_ground, freqs
 
-# %%
