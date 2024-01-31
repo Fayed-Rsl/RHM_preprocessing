@@ -1,3 +1,5 @@
+# Main required import
+#----------------------------------------------------------------------------#
 import numpy as np
 import matplotlib.pyplot as plt 
 import mne
@@ -7,10 +9,27 @@ import pandas as pd
 import mne_connectivity
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import interpolate
-    
-# get the onset and the duration for task (e.g., 'MoveL') event
-# resting state period marked and the selected task.
-# note that it is also possible to adapt the script to extend the rest period to everything that it is not marked as the task.
+import os 
+
+# Folder and subject settings
+#----------------------------------------------------------------------------#
+# define where the bids folder is
+bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
+
+# create a list of the subjects present in the bids dataset and sort it 
+subjects = [sub for sub in os.listdir(bids_root) if os.path.isdir(bids_root + sub)]
+subjects.sort()
+
+# create a list of subjects to loop over all the fif file in session PeriOp
+# remove empty room (noise) and split 02 as it is read when we read the split-01 file
+subject_files = BIDSPath(root=bids_root, session='PeriOp', extension='.fif').match()
+subject_files = [file for file in subject_files if 'noise' not in file.basename]
+subject_files = [file for file in subject_files if 'split-02' not in file.basename]
+
+# Custom function for technical validation 
+#----------------------------------------------------------------------------#
+# get the onset and the duration for task (e.g., 'MoveL') event and resting state period marked.
+# note that it is also possible to adapt the script to extend the rest period to everything that it is not marked as task.
 # but here we only include the period that were marked as rest, but not the rest period between the task aswell.
 def get_raw_condition(raw, conds):
     '''    
@@ -25,8 +44,10 @@ def get_raw_condition(raw, conds):
     tuple of rest and task segments
     if no event found in the raw.annotations --> the value will be None.
     '''    
+    # create a copy of the list so we can modify it without changing the original list 
+    conditions = conds.copy() 
     
-    conditions = conds.copy() # create a copy of the list so we can modify it without changing the original list 
+    # available conditions in the bids dataset
     allowed_conditions = [['rest', 'HoldL'], ['rest', 'MoveL'], ['rest', 'HoldR'], ['rest', 'MoveR'], ['rest']]
     assert conditions in allowed_conditions, f'Conditions should be in {allowed_conditions}'
     
@@ -34,7 +55,7 @@ def get_raw_condition(raw, conds):
     task_segments = None 
     rest_segments = None
     
-    # check that the raw actually have resting state not only task
+    # check that the raw actually have resting state and not only task [e.g., files run-2]
     if 'rest' not in raw.annotations.description:
         conditions.remove('rest')
 
@@ -48,8 +69,9 @@ def get_raw_condition(raw, conds):
         
         # loop trough the onset and duration to get only part of the raw that are in the task
         for i, (onset, duration) in enumerate(zip(segments_onset, segments_duration)):
-            # if it is the first onset, initialise the raw object storing all of the task segments
+            # if it is not resting state
             if task != 'rest':
+                # if it is the first onset, initialise the raw object storing all of the task segments
                 if i == 0:
                     task_segments = raw.copy().crop(tmin=onset, tmax=onset+duration)
                 # otherwise, append the segments to the existing raw object
@@ -90,7 +112,7 @@ def get_selected_emg(emgs, ch_names, side):
     emg_left = emgs[2:]
     emg_right = emgs[:2]
     
-    # find the side automatically using RMS     
+    # find the side automatically using RMS
     if side == 'find':
         rms_right = np.sqrt(np.mean(emg_right**2))
         rms_left = np.sqrt(np.mean(emg_left**2))
@@ -115,7 +137,6 @@ def get_selected_emg(emgs, ch_names, side):
     elif selected_emg_label == 'left':
         ch_names = ch_names[2:]
         
-    print(selected_emg_label, ch_names)
     return selected_emg_mean, selected_emg_label, ch_names
 
 # function to get the emg power in the selected EMG side
@@ -126,7 +147,7 @@ def get_emg_power(raw, ch_names, side='find', fmin=2, fmax=45):
     psd, freqs = mne.time_frequency.psd_array_welch(selected_emg, sfreq=sfreq, fmin=fmin, fmax=fmax, n_fft=2048)
     return psd, freqs, selected_emg_label, ch_names
 
-# function to plot the power of emgs
+# function to plot the power of emgs [needed to check against the raw, if the founded side match the actual task]
 def plot_power(psd, freqs, side, condition, color, ax):
     ax.plot(freqs, psd, label=f'{condition}', alpha=0.5, color=color)
     ax.legend()
@@ -223,20 +244,10 @@ def preprocess_raw_to_epochs(bids, downsample=200):
     epochs = mne.make_fixed_length_epochs(raw, duration=2, overlap=1, preload=True)
     return epochs 
 
+# internal scaling of mne topomap that we want to cancel out so we have actual connectivity in topomaps
+scaling = 1e13 ** 2
 
-# make individual topomap 1_lfp*megs
-def individual_lfpmeg_coh(seeds, targets, data, sfreq, fmin, fmax):
-    individual_coh_list = [] # store the individual coherence in a list
-    # loop over the seeds i.e., list of LFP sensors and do connectivity for one (seed) LFP against all targets (MEG)
-    for seed in seeds:
-        indices = mne_connectivity.seed_target_indices(seed, targets) 
-        # compute spectral connectivity coherence with multitaper and append it to a list 
-        coh_lfpmeg = mne_connectivity.spectral_connectivity_epochs(data, fmin=fmin, fmax=fmax,
-                   method='coh', mode='multitaper', sfreq=sfreq, indices=indices, n_jobs=-1)
-        individual_coh_list.append(coh_lfpmeg)
-
-    return individual_coh_list
-
+# make topomap for average all, left or right
 def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],average_type='all', dB=False):
     # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
     coh_data = coh.get_data() 
@@ -253,6 +264,9 @@ def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],averag
         assert len(lfp_ind) > 0, 'Please specifiy the index of the lfp side.'
         coh_average = np.mean(coh_data[lfp_ind, :, :], axis=0) # get only the LFP on the requested side index
    
+    # cancel out the scaling factor for the plots
+    coh_average = (coh_average / scaling)
+
     # create a mne Spectrum array using MEG sensors information
     coh_spec = mne.time_frequency.SpectrumArray(coh_average, meg_info, freqs=coh_freqs)
     
@@ -260,29 +274,32 @@ def plot_coh_topo(coh, n_lfp, n_meg, meg_info, freqs_beta, ax, lfp_ind=[],averag
     coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax)
     return ax
 
-# plot indviidual topomap
-def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=False, show=True): 
+def plot_individual_coh_topo(coh, n_lfp, n_meg, lfp_ch_names, meg_info, freqs_beta, dB=False, show=True): 
+    # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
+    coh_data = coh.get_data()
+    coh_freqs = np.array(coh.freqs)
+    
+    # reshape the data according to (N_lfp * N_meg * N_freqs)
+    coh_data = coh_data.reshape(n_lfp, n_meg, len(coh_freqs))    
+
+    # cancel out the scaling factor for the plots
+    coh_data = (coh_data / scaling)
+
     # calculate the number of LFP channels on the left and right
     left_channels = sum('left' in name for name in lfp_ch_names)
     right_channels = sum('right' in name for name in lfp_ch_names)
-    
+
     # determine the number of columns dynamically
     num_columns = max(left_channels, right_channels)
-    
+
     # create a figure of 2 rows: row1=LEFT, row2=RIGHTH and n_columns depending on how much LFP in that side
     fig, ax = plt.subplots(2, num_columns, figsize=(8, 6))
     row1, row2 = 0, 0 # initialise both rows to 0
-    for idx, (coh, name) in enumerate(zip (coh_list, lfp_ch_names)):
-        # get the data of the connectivity coherence --> shape should be (N_connection * N_freqs)
-        coh_data = coh.get_data()
-        
-        # get the frequency
-        coh_freqs = np.array(coh.freqs)
-        
+    for idx, (coherence, name) in enumerate(zip(coh_data, lfp_ch_names)):
         # create a mne Spectrum array using MEG sensors information
-        coh_spec = mne.time_frequency.SpectrumArray(coh_data, meg_info, freqs=coh_freqs)
+        coh_spec = mne.time_frequency.SpectrumArray(coherence, meg_info, freqs=coh_freqs)
     
-        # plot for specific sides with fieldtriep color map <3 
+        # plot for specific sides with fieldtriep color map <3
         if 'left' in name:
             coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[0][row1])
             ax[0][row1].set_title(name)
@@ -292,7 +309,7 @@ def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=Fa
             coh_spec.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[1][row2])
             ax[1][row2].set_title(name)
             row2 += 1
-        
+            
     # remove extra empty axes for each side
     for i in range(left_channels, num_columns):
         fig.delaxes(ax[0][i])
@@ -300,9 +317,13 @@ def plot_individual_coh_topo(coh_list, lfp_ch_names, meg_info, freqs_beta, dB=Fa
     for i in range(right_channels, num_columns):
         fig.delaxes(ax[1][i])
     
+    # remove colorbar defaut label created for grad (ft/cm² ...)
+    for cbar in fig.axes:
+        if isinstance(cbar, plt.Axes):
+            cbar.set_ylabel('') 
+            
     if show:
-        plt.show()
-
+        plt.show()    
 
 # interpolate function to have a list of interpolated coherence matrices with the same size
 def interp(grand_ave):
@@ -346,6 +367,7 @@ def save_multipage(filename, figs=None, dpi=300):
     
     
 # Matlab default color map          
+#----------------------------------------------------------------------------#
 cm_data = [[0.2422, 0.1504, 0.6603],
 [0.2444, 0.1534, 0.6728],
 [0.2464, 0.1569, 0.6847],
