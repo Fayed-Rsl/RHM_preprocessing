@@ -8,7 +8,7 @@ import os
 import pickle
 
 # import homemade function 
-from technical_validation_utils import (parula_map, scaling, interp, save_multipage, subjects)
+from technical_validation_utils import (parula_map, scaling, interp, subjects)
 
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # %matplotlib qt
@@ -107,12 +107,16 @@ for cbar in fig.axes:
         cbar.set_ylabel('') 
         
 # set title for each axes
-ax[0].set_title('Average ALL')
-ax[1].set_title('Average left')
-ax[2].set_title('Average right')
+# ax[0].set_title('Average ALL')
+# ax[1].set_title('Average left')
+# ax[2].set_title('Average right')
+
+ax[0].set_title('')
+ax[1].set_title('')
+ax[2].set_title('')
 
 # save the grand average inside the coherence folder.
-save_multipage('./figures/sub-GrandAverageCOH.pdf')
+fig.savefig('./figures/sub-GrandAverageCOH.jpg', dpi=300)
 plt.show()
 
 # %%

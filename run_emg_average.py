@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import os 
 
 # import homemade function 
-from technical_validation_utils import save_multipage, subjects
+from technical_validation_utils import subjects
     
 # %%
 # NB: run_emg.py must has been runned before running the average
@@ -140,5 +140,5 @@ if plot_line:
 plt.fill_between(freqs, mean_move - std_factor_move * std_move, mean_move + std_factor_move * std_move, color=move_color,alpha=0.2)
 
 plt.legend()
-save_multipage('./figures/sub-GrandAverageEMG.pdf')
+plt.savefig('./figures/sub-GrandAverageEMG.jpg', dpi=300)
 plt.show()
