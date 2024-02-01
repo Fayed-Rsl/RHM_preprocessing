@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import zscore
+
+# import homemade function 
 from technical_validation_utils import get_raw_condition, get_emg_power, plot_power, subject_files
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # %%

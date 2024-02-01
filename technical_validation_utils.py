@@ -6,7 +6,6 @@ import mne
 from matplotlib.colors import LinearSegmentedColormap
 from mne_bids import BIDSPath, read_raw_bids
 import pandas as pd
-import mne_connectivity
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import interpolate
 import os 

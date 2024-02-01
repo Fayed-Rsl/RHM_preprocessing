@@ -1,7 +1,6 @@
 # import the main libraries required for the preprocessing
 import mne 
 from pathlib import Path
-import numpy as np
 import matplotlib.pyplot as plt
 import mne_connectivity
 import pickle
@@ -15,7 +14,6 @@ mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # set the frequency for the coherence to compute 
 fmin = 13
 fmax = 30
-freqs = np.arange(fmin, fmax+1, 1) # [13, ..., 30]
 freqs_beta = {'beta': (fmin, fmax)} # freq up to beta (13, 30) 
 dB = False # log values for the plot
 
@@ -51,7 +49,7 @@ for n_file, bids in enumerate(subject_files):
     # get the sampling freq
     sfreq = epochs.info['sfreq']
     
-    # get the position of the sensor to split between ch meg left
+    # create epochs with only meg or lfp
     meg = epochs.copy().pick_types(meg='grad')
     lfp = epochs.copy().pick_types(eeg=True)
     
