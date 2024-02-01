@@ -49,7 +49,7 @@ statistic, p_value = ttest_ind(data_on, data_off)
 # add stars if it is significant using statannotations library --> not necessary can comment this part if not wanted
 # from statannotations.Annotator import Annotator 
 # annot = Annotator(ax, pairs=[('ON', 'OFF')], data=data, x='status', y='SUM')
-# annot.configure(test='t-test_ind', text_format='star', loc='inside')
+# annot.configure(test='t-test_ind', text_format='star', loc='outside')
 # annot.apply_and_annotate()
 
 # plt.title('UPDRS scores and medication status')
@@ -61,4 +61,4 @@ plt.tight_layout()
 plt.yticks(np.arange(0, max(data['SUM']) + 10, 10))
 
 # save the figure in the current folder
-fig.savefig('./figures/updrs_scores.jpg', dpi=300)
+fig.savefig('./figures/sub-UPDRS.jpg', dpi=300)
