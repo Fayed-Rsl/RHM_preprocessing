@@ -2,6 +2,7 @@
 # For example purposes, preprocessing has been implemented only for a specific: subject, session, task, acquisition.
 # One would need to adapt the following code in order to make analyse on the whole dataset as it is examplified in run_coherence.py
 # Feel free to modify the script as pleased.
+# INFORMATION: You would need to change the bids_root to make it match with the location of the bids_dataset
 #----------------------------------------------------------------------------#
 
 # import the main libraries required for the preprocessing
@@ -12,8 +13,11 @@ import pandas as pd
 import mne_connectivity
 
 # import homemade function 
-from technical_validation_utils import (bids_root, get_raw_condition, plot_individual_coh_topo, plot_coh_topo)
+from technical_validation_utils import (get_raw_condition, plot_individual_coh_topo, plot_coh_topo)
 # %%
+# define the bids root
+bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
+
 # setting for loading a specific file
 session = 'PeriOp'
 subject = 'QZTsn6'
