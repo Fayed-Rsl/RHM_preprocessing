@@ -21,7 +21,6 @@ freqs_beta = {'beta': (13, 30)}
 dB = False
 
 # store variable for coherences 
-all_coherences = []
 all_coherences_left = []
 all_coherences_right = []
 got_info = False # check if we stored the MEG info with 204 sensors
@@ -71,12 +70,10 @@ for n_sub, subject_dir in enumerate(coherence_dir):
             coh_average_right = np.mean(coh_data[lfp_right_ind, :, :], axis=0)
 
         # append the coherence for each file of the subject
-        coherences.append(coh_average)
         coherences_left.append(coh_average_left)
         coherences_right.append(coh_average_right)
 
     # average on files axis and append it to the grand average list
-    all_coherences.append(np.mean(coherences, axis=0))
     all_coherences_left.append(np.mean(coherences_left, axis=0))
     all_coherences_right.append(np.mean(coherences_right, axis=0))
 
@@ -85,38 +82,37 @@ for n_sub, subject_dir in enumerate(coherence_dir):
 # cancel out this scaling to keep our actual coherence values 
 
 # interpolate missing sensors and rescale it for the coherences list 
-grand_ave_coh = (interp(all_coherences) / scaling)
 grand_ave_coh_left = (interp(all_coherences_left) / scaling)
 grand_ave_coh_right = (interp(all_coherences_right)/ scaling)
 # %%
 # we create a SpectrumArray object for visualising the topomap using the meg_info_max (204 sensors)
-grand_ave_coh = mne.time_frequency.SpectrumArray(grand_ave_coh, meg_info_max, freqs=coh_freqs)
 grand_ave_coh_left = mne.time_frequency.SpectrumArray(grand_ave_coh_left, meg_info_max, freqs=coh_freqs)
 grand_ave_coh_right = mne.time_frequency.SpectrumArray(grand_ave_coh_right, meg_info_max, freqs=coh_freqs)
 
 # %%
 # plot grand average for each sides 
-fig, ax = plt.subplots(1, 3, figsize=(8, 6))
-grand_ave_coh.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[0])
-grand_ave_coh_left.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[1])
-grand_ave_coh_right.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax[2])
+# LEFT
+fig, ax = plt.subplots(figsize=(8, 6))
+grand_ave_coh_left.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax, cbar_fmt='%0.2f')
 
 # remove colorbar defaut label
-for cbar in fig.axes:
-    if isinstance(cbar, plt.Axes):
-        cbar.set_ylabel('') 
-        
-# set title for each axes
-# ax[0].set_title('Average ALL')
-# ax[1].set_title('Average left')
-# ax[2].set_title('Average right')
+[cbar.set_ylabel('') for cbar in fig.axes if isinstance(cbar, plt.Axes)]
+ax.set_title('')
 
-ax[0].set_title('')
-ax[1].set_title('')
-ax[2].set_title('')
+# save the grand average for this side
+fig.savefig('./figures/sub-GrandAverageCOH-left.jpg', dpi=300)
 
-# save the grand average inside the coherence folder.
-fig.savefig('./figures/sub-GrandAverageCOH.jpg', dpi=300)
+# RIGHT
+fig, ax = plt.subplots(figsize=(8, 6))
+grand_ave_coh_right.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax, cbar_fmt='%0.2f')
+
+# remove colorbar defaut label
+[cbar.set_ylabel('') for cbar in fig.axes if isinstance(cbar, plt.Axes)]
+ax.set_title('')
+
+# save the grand average for this side
+fig.savefig('./figures/sub-GrandAverageCOH-right.jpg', dpi=300)
 plt.show()
+
 
 # %%
