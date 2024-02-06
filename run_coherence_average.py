@@ -33,7 +33,6 @@ for n_sub, subject_dir in enumerate(coherence_dir):
     info_coh_files.sort()
 
     # store all coherences for one subjects to average over
-    coherences = []
     coherences_left = []
     coherences_right = []
     
@@ -91,28 +90,21 @@ grand_ave_coh_right = mne.time_frequency.SpectrumArray(grand_ave_coh_right, meg_
 
 # %%
 # plot grand average for each sides 
-# LEFT
-fig, ax = plt.subplots(figsize=(8, 6))
+# ------------------------------------
+fig, ax = plt.subplots(figsize=(8, 6)) # LEFT
 grand_ave_coh_left.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax, cbar_fmt='%0.2f')
-
-# remove colorbar defaut label
 [cbar.set_ylabel('') for cbar in fig.axes if isinstance(cbar, plt.Axes)]
 ax.set_title('')
-
-# save the grand average for this side
 fig.savefig('./figures/sub-GrandAverageCOH-left.jpg', dpi=300)
-
-# RIGHT
-fig, ax = plt.subplots(figsize=(8, 6))
-grand_ave_coh_right.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax, cbar_fmt='%0.2f')
-
-# remove colorbar defaut label
-[cbar.set_ylabel('') for cbar in fig.axes if isinstance(cbar, plt.Axes)]
-ax.set_title('')
-
-# save the grand average for this side
-fig.savefig('./figures/sub-GrandAverageCOH-right.jpg', dpi=300)
 plt.show()
 
+# ------------------------------------
+fig, ax = plt.subplots(figsize=(8, 6)) # RIGHT
+grand_ave_coh_right.plot_topomap(bands=freqs_beta, res=300, cmap=(parula_map, True), dB=dB, axes=ax, cbar_fmt='%0.2f')
 
+# remove colorbar defaut label and title and save 
+[cbar.set_ylabel('') for cbar in fig.axes if isinstance(cbar, plt.Axes)]
+ax.set_title('')
+fig.savefig('./figures/sub-GrandAverageCOH-right.jpg', dpi=300)
+plt.show()
 # %%
