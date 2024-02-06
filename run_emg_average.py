@@ -85,7 +85,6 @@ for n_sub, subject_dir in enumerate(emg_dir):
     all_ave_psds_rest.append(weighted_average_rest)
         
 # %%
-
 # Calculate mean and standard deviation of the EMG signal during rest
 mean_emg_rest = np.mean(all_ave_psds_rest)
 std_emg_rest = np.std(all_ave_psds_rest)
@@ -116,29 +115,22 @@ std_factor_hold = 1 / total_hold
 std_factor_move = 1 / total_move 
 
 # plot arguments 
-plot_line = False # plot all lines for one condition
 rest_color = 'green'
 hold_color = 'darkorange'
 move_color = 'blue'
 
 plt.figure()
 plt.plot(freqs, mean_rest, label='Rest', color=rest_color, alpha=0.7)
-if plot_line:
-    plt.plot(all_freqs_rest.T, np.array(all_ave_psds_rest).T, color=rest_color, alpha=0.2)
 plt.fill_between(freqs, mean_rest - std_factor_rest * std_rest, mean_rest + std_factor_rest * std_rest, color=rest_color, alpha=0.2)
 
-# plt.figure()
 plt.plot(freqs, mean_hold, label='Hold', alpha=0.7, color=hold_color)
-if plot_line:
-    plt.plot(all_freqs_hold.T, np.array(all_ave_psds_hold).T, color=hold_color, alpha=0.2)
 plt.fill_between(freqs, mean_hold - std_factor_hold * std_hold, mean_hold + std_factor_hold * std_hold, color=hold_color, alpha=0.2)
 
-# plt.figure()
 plt.plot(freqs, mean_move, label='Move', color=move_color, alpha=0.7)
-if plot_line:
-    plt.plot(all_freqs_move.T, np.array(all_ave_psds_move).T, color=move_color, alpha=0.2)    
 plt.fill_between(freqs, mean_move - std_factor_move * std_move, mean_move + std_factor_move * std_move, color=move_color,alpha=0.2)
 
+plt.ylabel('Power')
+plt.xlabel('Frequency')
 plt.legend()
 plt.savefig('./figures/sub-GrandAverageEMG.jpg', dpi=300)
 plt.show()
