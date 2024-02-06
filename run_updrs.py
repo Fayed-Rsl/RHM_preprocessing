@@ -5,8 +5,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind
-
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
+from technical_validation_utils import bids_root
 
 # UPDRS filename 
 updrs_on = Path(bids_root) / 'participants_updrs_on.tsv'
@@ -37,11 +36,10 @@ fig, ax = plt.subplots(figsize=(10,6))
 font = 20 
 
 # plot each point for both condition
-sns.swarmplot(data=data, x='status', y='SUM', palette=['cornflowerblue', 'red'], alpha=0.8, ax=ax)
+sns.swarmplot(data=data, x='status', y='SUM', palette=['white', 'white'], alpha=1, ax=ax, size=8)
 
 # add a violin plot
-sns.violinplot(x='status', y='SUM', data=data, inner=None, palette=['cornflowerblue', 'red'], saturation=0.4, ax=ax)
-
+sns.violinplot(x='status', y='SUM', data=data, inner=None, palette=['gray', 'gray'], ax=ax, linewidth=2)
 
 # compute t test 
 statistic, p_value = ttest_ind(data_on, data_off)
@@ -53,8 +51,8 @@ statistic, p_value = ttest_ind(data_on, data_off)
 # annot.apply_and_annotate()
 
 # plt.title('UPDRS scores and medication status')
-plt.xlabel('') # add the label later ... 
-plt.ylabel('')
+plt.xlabel('')
+plt.ylabel('UPDRS SCORE', fontsize=font)
 plt.xticks(fontsize=font)
 plt.yticks(fontsize=font)
 plt.tight_layout()
