@@ -9,12 +9,25 @@ import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from scipy import interpolate
 import os 
+import sys
+
+# get the absolute path of the current script file
+current_script_path = os.path.abspath(sys.argv[0])
+
+# get the directory of the current script
+current_dir = os.path.dirname(current_script_path)
+
+# construct the path to the directory containing get_started.py relative to the current directory
+get_started_dir = os.path.join(current_dir, '.')
+
+# add the path so we can import the bids root
+sys.path.append(get_started_dir)
+
+# import the bids root defined in config
+from config import bids_root 
 
 # Folder and subject settings
 #----------------------------------------------------------------------------#
-# define where the bids folder is
-bids_root = '/data/raw/hirsch/RestHoldMove_anon/'
-
 # create a list of the subjects present in the bids dataset and sort it 
 subjects = [sub for sub in os.listdir(bids_root) if os.path.isdir(bids_root + sub)]
 subjects.sort()
