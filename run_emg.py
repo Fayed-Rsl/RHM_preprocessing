@@ -15,6 +15,7 @@ fmax = 45
 # loop over all subject files
 for n_file, bids in enumerate(subject_files):
 
+    # set the side of the EMG according to the task label
     if bids.task in ['MoveL', 'HoldL']:
         side = 'left'
     
@@ -46,8 +47,7 @@ for n_file, bids in enumerate(subject_files):
     
     # compute psd for the task_segments in the side where the subject made the task
     if task_segments is not None: # (only when bids.task is not Rest)
-        # find the EMG side and comupute power --> the founded side has also been checked visually! 
-        # psd_task, freqs, side, ch = get_emg_power(task_segments, raw.ch_names, side='find', fmin=fmin, fmax=fmax)
+        # comupute power of EMG in the side that the participant moved his hand
         psd_task, freqs, _, ch = get_emg_power(task_segments, raw.ch_names, side=side, fmin=fmin, fmax=fmax)
 
     else:
@@ -61,9 +61,8 @@ for n_file, bids in enumerate(subject_files):
 
         elif bids.task == 'Rest':
             # if the task is Rest then get power on the averaged 4 EMGs 
-            # psd_rest, freqs, _, ch = get_emg_power(rest_segments, raw.ch_names, side='all', fmin=fmin, fmax=fmax)
             psd_rest, freqs, _, ch = get_emg_power(rest_segments, raw.ch_names, side=side, fmin=fmin, fmax=fmax)
-            
+        
     else:
         psd_rest = None
     
