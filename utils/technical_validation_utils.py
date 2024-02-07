@@ -1,4 +1,5 @@
 # Main required import
+# NB: this script is not made for running, it only holds functions to support other scripts 
 #----------------------------------------------------------------------------#
 import numpy as np
 import matplotlib.pyplot as plt 
