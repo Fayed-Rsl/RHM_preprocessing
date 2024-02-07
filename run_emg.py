@@ -2,10 +2,8 @@
 from mne_bids import read_raw_bids
 import mne 
 from pathlib import Path
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import zscore
-
+import numpy as np
 # import homemade function 
 from technical_validation_utils import get_raw_condition, get_emg_power, plot_power, subject_files
 mne.set_log_level(verbose='CRITICAL') # reduce verbose output
@@ -13,11 +11,19 @@ mne.set_log_level(verbose='CRITICAL') # reduce verbose output
 # apply psd welch between 2, 45 Hz
 fmin = 2
 fmax = 45 
-norm = '' # '' or zscore (''= to keep the EMG data as it is, zscore= to zscore the raw time series before psd)
 
 # loop over all subject files
 for n_file, bids in enumerate(subject_files):
 
+    if bids.task in ['MoveL', 'HoldL']:
+        side = 'left'
+    
+    elif bids.task in ['MoveR', 'HoldR']:
+        side = 'right'
+    
+    elif bids.task == 'Rest':
+        side = 'all'
+        
     # read the raw file
     raw = read_raw_bids(bids)
     
@@ -30,10 +36,6 @@ for n_file, bids in enumerate(subject_files):
     
     # apply a 1Hz high pass firwin filter to remove slow drifts.
     raw.filter(l_freq=1, h_freq=None, method='fir', n_jobs=-1, picks=['emg'])
-    
-    if norm == 'zscore':
-        # apply z_score along EMGs channels for each time point 
-        raw._data = zscore(raw._data, axis=0)
         
     # if the task is only Rest then keep the raw segments as it is for rest and set None to task_segments
     if bids.task == 'Rest': # true only for 2 subject
@@ -45,7 +47,9 @@ for n_file, bids in enumerate(subject_files):
     # compute psd for the task_segments in the side where the subject made the task
     if task_segments is not None: # (only when bids.task is not Rest)
         # find the EMG side and comupute power --> the founded side has also been checked visually! 
-        psd_task, freqs, side, ch = get_emg_power(task_segments, raw.ch_names, side='find', fmin=fmin, fmax=fmax)
+        # psd_task, freqs, side, ch = get_emg_power(task_segments, raw.ch_names, side='find', fmin=fmin, fmax=fmax)
+        psd_task, freqs, _, ch = get_emg_power(task_segments, raw.ch_names, side=side, fmin=fmin, fmax=fmax)
+
     else:
         psd_task = None
         
@@ -57,7 +61,9 @@ for n_file, bids in enumerate(subject_files):
 
         elif bids.task == 'Rest':
             # if the task is Rest then get power on the averaged 4 EMGs 
-            psd_rest, freqs, side, ch = get_emg_power(rest_segments, raw.ch_names, side='all', fmin=fmin, fmax=fmax)
+            # psd_rest, freqs, _, ch = get_emg_power(rest_segments, raw.ch_names, side='all', fmin=fmin, fmax=fmax)
+            psd_rest, freqs, _, ch = get_emg_power(rest_segments, raw.ch_names, side=side, fmin=fmin, fmax=fmax)
+            
     else:
         psd_rest = None
     
@@ -83,12 +89,11 @@ for n_file, bids in enumerate(subject_files):
     plt.show()
                 
     # save the power for further group analysis
-    basename = bids.copy().update(check=False, suffix=f'emgdata{norm}', extension='.npz', split=None).basename
+    basename = bids.copy().update(check=False, suffix='emgdata', extension='.npz', split=None).basename
     sub_path = Path(f'emgs/sub-{bids.subject}/')
     sub_path.mkdir(parents=True, exist_ok=True)        
     emg_path = Path(f'{sub_path}/{basename}')
-    
-
+        
     if psd_rest is not None and psd_task is not None :
         np.savez(emg_path, freqs=freqs, psd_ground=psd_ground, psd_rest=psd_rest, psd_task=psd_task, task_time=task_segments.times, rest_time=rest_segments.times)
 
