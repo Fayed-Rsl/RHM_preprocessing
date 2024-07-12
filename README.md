@@ -51,8 +51,22 @@ python run_emg_average.py
 ```
 ![EMG](https://github.com/Fayed-Rsl/RHM_preprocessing/raw/master/utils/figures/sub-GrandAverageEMG.jpg)
 
+
+```bash
+python run_var_average.py
+```
+![EMG](https://github.com/Fayed-Rsl/RHM_preprocessing/raw/master/utils/figures/sub-GrandAverageVAR.jpg)
+
+
 ```bash
 python run_coherence_average.py
 ```
 ![Coh Left](https://github.com/Fayed-Rsl/RHM_preprocessing/raw/master/utils/figures/sub-GrandAverageCOH-left.jpg)
 ![Coh Right](https://github.com/Fayed-Rsl/RHM_preprocessing/raw/master/utils/figures/sub-GrandAverageCOH-right.jpg)
+
+
+```bash
+source_reconstruction_example.m [matlab required]
+```
+![SOURCE](https://github.com/Fayed-Rsl/RHM_preprocessing/raw/master/utils/figures/sub-SourceReconstructionExample.jpg)
+
